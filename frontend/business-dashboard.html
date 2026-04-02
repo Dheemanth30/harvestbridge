@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Business Dashboard — HarvestBridge</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+<nav class="navbar">
+  <a href="/" class="nav-logo"><span class="logo-icon">🌾</span>Harvest<span>Bridge</span></a>
+  <div class="nav-auth" id="nav-auth"></div>
+</nav>
+
+<div class="dashboard-layout">
+  <aside class="sidebar">
+    <div class="sidebar-title">Navigation</div>
+    <nav class="sidebar-nav">
+      <a href="#" class="sidebar-link active" onclick="showTab('orders')" id="link-orders"><span class="icon">📦</span>My Orders</a>
+      <a href="#" class="sidebar-link" onclick="showTab('active')" id="link-active"><span class="icon">🚚</span>Active Deliveries</a>
+    </nav>
+    <div class="sidebar-title">Shop</div>
+    <nav class="sidebar-nav">
+      <a href="/marketplace.html" class="sidebar-link"><span class="icon">🛍️</span>Marketplace</a>
+      <a href="/cart.html" class="sidebar-link"><span class="icon">🛒</span>Cart</a>
+      <a href="#" class="sidebar-link" onclick="logout()"><span class="icon">🚪</span>Logout</a>
+    </nav>
+  </aside>
+
+  <main class="dashboard-main">
+    <!-- Orders Tab -->
+    <div id="tab-orders">
+      <div class="dashboard-header">
+        <h2>My Orders</h2>
+        <p>Track all your orders from farmers</p>
+      </div>
+      <div class="stats-grid" id="order-stats"></div>
+      <div id="orders-list"><div class="loading"><div class="spinner"></div></div></div>
+    </div>
+
+    <!-- Active Tab -->
+    <div id="tab-active" style="display:none;">
+      <div class="dashboard-header"><h2>Active Deliveries</h2><p>Orders currently in progress</p></div>
+      <div id="active-list"><div class="loading"><div class="spinner"></div></div></div>
+    </div>
+  </main>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+  if (!requireAuth('business')) {}
+
+  let allOrders = [];
+
+  function showTab(tab) {
+    ['orders', 'active'].forEach(t => {
+      document.getElementById(`tab-${t}`).style.display = t === tab ? 'block' : 'none';
+      document.getElementById(`link-${t}`)?.classList.toggle('active', t === tab);
+    });
+    if (tab === 'active') renderActive();
+  }
+
+  async function loadOrders() {
+    try {
+      allOrders = await apiFetch('/orders/mine');
+      renderStats();
+      renderOrders();
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  function renderStats() {
+    const total = allOrders.reduce((s, o) => s + o.total_amount, 0);
+    const active = allOrders.filter(o => !['delivered'].includes(o.status)).length;
+    const paid = allOrders.filter(o => o.payment_status === 'paid').length;
+    document.getElementById('order-stats').innerHTML = `
+      <div class="stat-card"><div class="stat-icon amber">🧾</div><div class="stat-info"><div class="num">${allOrders.length}</div><div class="label">Total Orders</div></div></div>
+      <div class="stat-card"><div class="stat-icon blue">🚚</div><div class="stat-info"><div class="num">${active}</div><div class="label">Active Orders</div></div></div>
+      <div class="stat-card"><div class="stat-icon green">✅</div><div class="stat-info"><div class="num">${paid}</div><div class="label">Paid Orders</div></div></div>
+      <div class="stat-card"><div class="stat-icon green">💰</div><div class="stat-info"><div class="num">${fmtCurrency(total)}</div><div class="label">Total Spent</div></div></div>`;
+  }
+
+  function renderOrders() {
+    const el = document.getElementById('orders-list');
+    if (!allOrders.length) {
+      el.innerHTML = `<div class="empty-state"><div class="empty-icon">📦</div><h3>No orders yet</h3><p>Browse the marketplace and place your first order.</p><a href="/marketplace.html" class="btn btn-green">Go to Marketplace</a></div>`;
+      return;
+    }
+    el.innerHTML = allOrders.map(o => `
+      <div class="order-card">
+        <div class="order-header">
+          <div>
+            <div class="order-id">Order #${o.id}</div>
+            <div class="order-meta">${fmtDate(o.created_at)} · 🏡 ${o.farm_name || 'Farm'}</div>
+          </div>
+          <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+            <span class="status-badge status-${o.status}">${o.status.charAt(0).toUpperCase() + o.status.slice(1)}</span>
+            <span class="status-badge status-${o.payment_status}">${o.payment_status === 'paid' ? '✅ Paid' : '❌ Unpaid'}</span>
+          </div>
+        </div>
+        <div class="order-body">
+          <div>
+            ${o.items.map(i => `<p style="font-size:0.9rem;color:var(--text-mid);">📦 ${i.product_name} × ${i.quantity}</p>`).join('')}
+            <a href="/order-tracking.html?id=${o.id}" class="btn btn-outline btn-sm" style="margin-top:0.75rem;">📍 Track Order</a>
+          </div>
+          <div class="order-amount">${fmtCurrency(o.total_amount)}</div>
+        </div>
+      </div>`).join('');
+  }
+
+  function renderActive() {
+    const active = allOrders.filter(o => !['delivered'].includes(o.status));
+    const el = document.getElementById('active-list');
+    if (!active.length) {
+      el.innerHTML = `<div class="empty-state"><div class="empty-icon">🚚</div><h3>No active deliveries</h3><p>All caught up!</p></div>`;
+      return;
+    }
+    el.innerHTML = active.map(o => `
+      <div class="order-card" style="border-left-color:var(--amber);">
+        <div class="order-header">
+          <div><div class="order-id">Order #${o.id} — 🏡 ${o.farm_name || 'Farm'}</div><div class="order-meta">${fmtDate(o.created_at)}</div></div>
+          <span class="status-badge status-${o.status}">${o.status.charAt(0).toUpperCase() + o.status.slice(1)}</span>
+        </div>
+        <a href="/order-tracking.html?id=${o.id}" class="btn btn-primary btn-sm" style="margin-top:0.75rem;">📍 Track Live</a>
+      </div>`).join('');
+  }
+
+  loadOrders();
+</script>
+</body>
+</html>

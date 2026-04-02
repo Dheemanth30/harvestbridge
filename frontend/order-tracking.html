@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Order Tracking — HarvestBridge</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+<nav class="navbar">
+  <a href="/" class="nav-logo"><span class="logo-icon">🌾</span>Harvest<span>Bridge</span></a>
+  <div class="nav-links"><a href="/business-dashboard.html">← My Orders</a></div>
+  <div class="nav-auth" id="nav-auth"></div>
+</nav>
+
+<div style="padding-top:72px;min-height:100vh;background:var(--cream);">
+  <div class="section" style="padding-top:3rem;">
+    <div class="container" style="max-width:800px;">
+      <h2 style="margin-bottom:2rem;">📦 Order Tracking</h2>
+      <div id="tracking-content"><div class="loading"><div class="spinner"></div></div></div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+  const orderId = new URLSearchParams(window.location.search).get('id');
+  const STEPS = [
+    { key: 'pending', label: 'Order Placed', icon: '📋' },
+    { key: 'confirmed', label: 'Confirmed', icon: '✅' },
+    { key: 'packed', label: 'Packed', icon: '📦' },
+    { key: 'shipped', label: 'Shipped', icon: '🚚' },
+    { key: 'delivered', label: 'Delivered', icon: '🎉' },
+  ];
+
+  async function loadOrder() {
+    if (!orderId) { window.location.href = '/business-dashboard.html'; return; }
+    try {
+      const order = await apiFetch(`/orders/${orderId}`);
+      renderTracking(order);
+    } catch (err) {
+      document.getElementById('tracking-content').innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><h3>${err.message}</h3></div>`;
+    }
+  }
+
+  function renderTracking(order) {
+    const currentIdx = STEPS.findIndex(s => s.key === order.status);
+
+    const stepsHtml = STEPS.map((step, i) => {
+      const isDone = i < currentIdx;
+      const isCurrent = i === currentIdx;
+      return `
+        <div class="timeline-step ${isDone ? 'done' : ''} ${isCurrent ? 'current' : ''}">
+          <div class="step-icon">${step.icon}</div>
+          <div class="step-label">${step.label}</div>
+        </div>`;
+    }).join('');
+
+    const itemsHtml = order.items.map(i => `
+      <div class="summary-item">
+        <span>${i.product_name || 'Product'} × ${i.quantity}</span>
+        <span>${fmtCurrency(i.unit_price * i.quantity)}</span>
+      </div>`).join('');
+
+    document.getElementById('tracking-content').innerHTML = `
+      <div class="card" style="padding:2rem;margin-bottom:1.5rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;margin-bottom:2rem;">
+          <div>
+            <h4 style="color:var(--green);">Order #${order.id}</h4>
+            <p style="font-size:0.9rem;color:var(--text-light);">Placed on ${fmtDate(order.created_at)} · Farm: ${order.farm_name || 'Farm'}</p>
+          </div>
+          <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+            <span class="status-badge status-${order.status}">${order.status.charAt(0).toUpperCase() + order.status.slice(1)}</span>
+            <span class="status-badge status-${order.payment_status}">${order.payment_status === 'paid' ? '✅ Paid' : '❌ Unpaid'}</span>
+          </div>
+        </div>
+
+        <div class="tracking-timeline">${stepsHtml}</div>
+      </div>
+
+      <div class="card" style="padding:1.5rem;margin-bottom:1.5rem;">
+        <h4 style="margin-bottom:1rem;">🧾 Order Items</h4>
+        ${itemsHtml}
+        <div class="summary-item summary-total" style="border-top:2px solid var(--border);margin-top:0.75rem;padding-top:0.75rem;">
+          <strong>Total</strong><strong>${fmtCurrency(order.total_amount)}</strong>
+        </div>
+      </div>
+
+      <div class="card" style="padding:1.5rem;">
+        <h4 style="margin-bottom:0.75rem;">📍 Delivery Address</h4>
+        <p style="color:var(--text-mid);">${order.delivery_address}</p>
+      </div>
+
+      <div style="text-align:center;margin-top:2rem;">
+        <button class="btn btn-outline" onclick="loadOrder()">🔄 Refresh Status</button>
+      </div>`;
+  }
+
+  loadOrder();
+</script>
+</body>
+</html>

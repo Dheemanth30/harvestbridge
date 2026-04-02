@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Our Farmers — HarvestBridge</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+<nav class="navbar">
+  <a href="/" class="nav-logo"><span class="logo-icon">🌾</span>Harvest<span>Bridge</span></a>
+  <div class="nav-links">
+    <a href="/marketplace.html">Marketplace</a>
+    <a href="/farmers.html">Farmers</a>
+  </div>
+  <div class="nav-auth" id="nav-auth"></div>
+</nav>
+
+<div style="padding-top:72px;min-height:100vh;background:var(--cream);">
+  <div class="section" style="padding-top:3rem;">
+    <div class="container">
+      <div class="section-header" style="text-align:left;">
+        <div class="subtitle">Our Network</div>
+        <h2>Verified Farmers</h2>
+        <p>Connect directly with farmers across India</p>
+      </div>
+      <div class="grid-3" id="farmers-grid">
+        <div class="loading" style="grid-column:1/-1;"><div class="spinner"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+  async function loadFarmers() {
+    try {
+      const farmers = await apiFetch('/farmers/');
+      const grid = document.getElementById('farmers-grid');
+      if (!farmers.length) {
+        grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">👨‍🌾</div><h3>No farmers yet</h3><p>Be the first to register as a farmer!</p><a href="/register.html?role=farmer" class="btn btn-green">Register as Farmer</a></div>`;
+        return;
+      }
+      grid.innerHTML = farmers.map(f => `
+        <div class="card" style="padding:1.5rem;text-align:center;">
+          <div style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,var(--green),var(--green-mid));display:flex;align-items:center;justify-content:center;font-size:2rem;margin:0 auto 1rem;color:white;font-weight:700;">
+            ${f.user_name ? f.user_name.charAt(0).toUpperCase() : '🌾'}
+          </div>
+          <h4 style="margin-bottom:0.25rem;">${f.farm_name}</h4>
+          <p style="font-size:0.9rem;color:var(--text-light);margin-bottom:0.75rem;">👤 ${f.user_name || ''} · 📍 ${f.location || 'India'}</p>
+          ${f.certifications ? `<div style="margin-bottom:0.75rem;"><span class="badge badge-organic">${f.certifications}</span></div>` : ''}
+          ${f.produce_types ? `<p style="font-size:0.85rem;color:var(--text-mid);margin-bottom:1rem;">🌾 ${f.produce_types}</p>` : ''}
+          ${f.description ? `<p style="font-size:0.85rem;color:var(--text-mid);margin-bottom:1rem;">${f.description.substring(0,100)}${f.description.length > 100 ? '...' : ''}</p>` : ''}
+          ${f.user_phone ? `<a href="tel:${f.user_phone}" class="btn btn-outline btn-sm btn-full">📞 Contact Farmer</a>` : ''}
+        </div>`).join('');
+    } catch (err) {
+      document.getElementById('farmers-grid').innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">⚠️</div><h3>${err.message}</h3></div>`;
+    }
+  }
+  loadFarmers();
+</script>
+</body>
+</html>

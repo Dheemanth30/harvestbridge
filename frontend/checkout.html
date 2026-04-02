@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Checkout — HarvestBridge</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+<nav class="navbar">
+  <a href="/" class="nav-logo"><span class="logo-icon">🌾</span>Harvest<span>Bridge</span></a>
+  <div class="nav-links"><a href="/cart.html">← Back to Cart</a></div>
+  <div class="nav-auth" id="nav-auth"></div>
+</nav>
+
+<div style="padding-top:72px;min-height:100vh;background:var(--cream);">
+  <div class="section" style="padding-top:3rem;">
+    <div class="container" style="max-width:1000px;">
+      <h2 style="margin-bottom:2rem;">Checkout</h2>
+      <div id="checkout-content"><div class="loading"><div class="spinner"></div></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Payment Success Modal -->
+<div class="modal-overlay" id="success-modal">
+  <div class="modal" style="text-align:center;">
+    <div style="font-size:4rem;margin-bottom:1rem;">🎉</div>
+    <h3>Order Placed Successfully!</h3>
+    <p style="margin:1rem 0 2rem;">Your orders have been placed and payment confirmed. Farmers will be notified shortly.</p>
+    <div style="display:flex;flex-direction:column;gap:0.75rem;">
+      <a href="/business-dashboard.html" class="btn btn-green btn-full">View My Orders</a>
+      <a href="/marketplace.html" class="btn btn-outline btn-full">Continue Shopping</a>
+    </div>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+  if (!requireAuth('business')) {}
+  let cartData = null;
+  let placedOrders = [];
+
+  async function loadCheckout() {
+    try {
+      cartData = await apiFetch('/cart/');
+      if (!cartData.items.length) { window.location.href = '/cart.html'; return; }
+      renderCheckout();
+    } catch (err) {
+      document.getElementById('checkout-content').innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><h3>${err.message}</h3></div>`;
+    }
+  }
+
+  function renderCheckout() {
+    const itemRows = cartData.items.map(i => `
+      <div class="summary-item">
+        <span>${i.product.name} × ${i.quantity} ${i.product.unit}</span>
+        <span>${fmtCurrency(i.subtotal)}</span>
+      </div>`).join('');
+
+    document.getElementById('checkout-content').innerHTML = `
+      <div class="checkout-grid">
+        <div>
+          <div class="card" style="padding:2rem;margin-bottom:1.5rem;">
+            <h3 style="margin-bottom:1.5rem;">📍 Delivery Details</h3>
+            <div class="form-group">
+              <label>Delivery Address *</label>
+              <textarea id="address" placeholder="Enter your full delivery address including city, state and pincode..." rows="4" required></textarea>
+            </div>
+          </div>
+
+          <div class="card" style="padding:2rem;">
+            <h3 style="margin-bottom:1.5rem;">💳 Payment</h3>
+            <div class="payment-box">
+              <div class="pay-icon">🌾</div>
+              <h4>Simulated Payment</h4>
+              <p>This is a demo. Click the button below to simulate a successful payment of <strong>${fmtCurrency(cartData.total)}</strong>.</p>
+              <div id="error-msg" class="form-error" style="display:none;margin-bottom:1rem;"></div>
+              <button class="btn btn-primary btn-lg btn-full" id="pay-btn" onclick="placeAndPay()">
+                💳 Pay ${fmtCurrency(cartData.total)} (Simulate)
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="order-summary">
+          <h3>Order Summary</h3>
+          ${itemRows}
+          <div class="summary-item summary-total">
+            <span>Total (${cartData.item_count} items)</span>
+            <span>${fmtCurrency(cartData.total)}</span>
+          </div>
+          <p style="font-size:0.8rem;color:var(--text-light);margin-top:1rem;">Orders will be grouped by farmer. Each farmer will receive their respective order.</p>
+        </div>
+      </div>`;
+  }
+
+  async function placeAndPay() {
+    const address = document.getElementById('address').value.trim();
+    if (!address) { showToast('Please enter delivery address', 'error'); return; }
+
+    const btn = document.getElementById('pay-btn');
+    const errEl = document.getElementById('error-msg');
+    btn.textContent = 'Placing orders...'; btn.disabled = true;
+    errEl.style.display = 'none';
+
+    try {
+      // Step 1: Place orders
+      placedOrders = await apiFetch('/orders/', { method: 'POST', body: { delivery_address: address } });
+      btn.textContent = 'Processing payment...';
+
+      // Step 2: Simulate payment for each order
+      for (const order of placedOrders) {
+        await apiFetch('/payments/simulate', { method: 'POST', body: { order_id: order.id } });
+      }
+
+      document.getElementById('success-modal').classList.add('open');
+    } catch (err) {
+      errEl.textContent = err.message;
+      errEl.style.display = 'block';
+      btn.textContent = `💳 Pay ${fmtCurrency(cartData.total)} (Simulate)`;
+      btn.disabled = false;
+    }
+  }
+
+  loadCheckout();
+</script>
+</body>
+</html>

@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Marketplace — HarvestBridge</title>
+  <meta name="description" content="Browse fresh produce directly from farmers. Filter by category, organic, and more.">
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+<nav class="navbar">
+  <a href="/" class="nav-logo"><span class="logo-icon">🌾</span>Harvest<span>Bridge</span></a>
+  <div class="nav-links">
+    <a href="/marketplace.html">Marketplace</a>
+    <a href="/farmers.html">Farmers</a>
+    <a href="/cart.html">🛒 Cart <span id="cart-badge" style="background:var(--amber);color:var(--green-dark);padding:0.1rem 0.4rem;border-radius:100px;font-size:0.75rem;font-weight:700;"></span></a>
+  </div>
+  <div class="nav-auth" id="nav-auth"></div>
+</nav>
+
+<div style="padding-top:72px;min-height:100vh;background:var(--cream);">
+  <div class="section" style="padding-top:3rem;">
+    <div class="container">
+      <div class="section-header" style="text-align:left;">
+        <div class="subtitle">Fresh From Farms</div>
+        <h2>Marketplace</h2>
+        <p>Browse products directly from verified farmers across India</p>
+      </div>
+
+      <!-- Filters -->
+      <div class="filter-bar">
+        <input type="text" id="search" placeholder="🔍 Search products..." oninput="filterProducts()">
+        <select id="category" onchange="filterProducts()">
+          <option value="">All Categories</option>
+          <option>Vegetables</option><option>Fruits</option><option>Grains</option>
+          <option>Dairy</option><option>Spices</option><option>Other</option>
+        </select>
+        <select id="organic" onchange="filterProducts()">
+          <option value="">All Products</option>
+          <option value="true">🌿 Organic Only</option>
+        </select>
+        <span id="product-count" style="color:var(--text-light);font-size:0.9rem;margin-left:auto;"></span>
+      </div>
+
+      <!-- Product Grid -->
+      <div class="grid-3" id="products-grid">
+        <div class="loading" style="grid-column:1/-1;"><div class="spinner"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="footer" style="margin-top:4rem;">
+  <div class="footer-bottom" style="max-width:100%;border-top:none;padding-top:1rem;">
+    <p>© 2024 HarvestBridge</p>
+  </div>
+</footer>
+
+<!-- Add to Cart Modal -->
+<div class="modal-overlay" id="cart-modal">
+  <div class="modal" style="max-width:400px;">
+    <div class="modal-header">
+      <h3 id="modal-product-name">Add to Cart</h3>
+      <button class="modal-close" onclick="closeCartModal()">✕</button>
+    </div>
+    <div style="margin-bottom:1.25rem;">
+      <p id="modal-product-info" style="color:var(--text-light);font-size:0.9rem;margin-bottom:1rem;"></p>
+      <div class="form-group">
+        <label>Quantity</label>
+        <div style="display:flex;align-items:center;gap:0.75rem;margin-top:0.5rem;">
+          <button class="qty-btn" onclick="changeModalQty(-1)" style="width:40px;height:40px;font-size:1.3rem;">−</button>
+          <input type="number" id="modal-qty" style="flex:1;padding:0.75rem;border:2px solid var(--border);border-radius:var(--radius-sm);font-size:1.1rem;font-weight:700;text-align:center;" oninput="updateModalSubtotal()">
+          <button class="qty-btn" onclick="changeModalQty(1)" style="width:40px;height:40px;font-size:1.3rem;">+</button>
+        </div>
+        <p id="modal-min-hint" style="font-size:0.8rem;color:var(--text-light);margin-top:0.4rem;"></p>
+      </div>
+      <div style="background:var(--cream-dark);border-radius:var(--radius-sm);padding:1rem;margin-top:1rem;display:flex;justify-content:space-between;align-items:center;">
+        <span style="color:var(--text-light);">Subtotal</span>
+        <span id="modal-subtotal" style="font-family:'Playfair Display',serif;font-size:1.4rem;font-weight:800;color:var(--green);">₹0</span>
+      </div>
+    </div>
+    <div id="modal-error" class="form-error" style="display:none;margin-bottom:0.75rem;"></div>
+    <button class="btn btn-primary btn-full btn-lg" id="modal-add-btn" onclick="confirmAddToCart()">🛒 Add to Cart</button>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+  let allProducts = [];
+  let currentCartProduct = null;
+
+  async function loadProducts() {
+    try {
+      allProducts = await apiFetch('/products/');
+      renderProducts(allProducts);
+      updateCartBadge();
+    } catch (err) {
+      document.getElementById('products-grid').innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">⚠️</div><h3>Could not load products</h3><p>${err.message}</p></div>`;
+    }
+  }
+
+  function filterProducts() {
+    const search = document.getElementById('search').value.toLowerCase();
+    const category = document.getElementById('category').value;
+    const organic = document.getElementById('organic').value;
+    const filtered = allProducts.filter(p => {
+      if (search && !p.name.toLowerCase().includes(search)) return false;
+      if (category && p.category !== category) return false;
+      if (organic === 'true' && !p.is_organic) return false;
+      return true;
+    });
+    renderProducts(filtered);
+  }
+
+  function renderProducts(products) {
+    const grid = document.getElementById('products-grid');
+    const showCart = getRole() === 'business';
+    document.getElementById('product-count').textContent = `${products.length} product${products.length !== 1 ? 's' : ''} found`;
+    if (!products.length) {
+      grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">🌾</div><h3>No products found</h3><p>Try adjusting your filters.</p></div>`;
+      return;
+    }
+    grid.innerHTML = products.map(p => buildProductCard(p, showCart)).join('');
+  }
+
+  // Open the quantity modal instead of prompt()
+  function addToCart(productId, minQty, unit) {
+    if (!getUser()) { window.location.href = '/login.html'; return; }
+    if (getRole() !== 'business') { showToast('Only businesses can order. Please login as a business.', 'info'); return; }
+
+    currentCartProduct = allProducts.find(p => p.id === productId);
+    if (!currentCartProduct) return;
+
+    document.getElementById('modal-product-name').textContent = currentCartProduct.name;
+    document.getElementById('modal-product-info').textContent =
+      `🏡 ${currentCartProduct.farm_name || 'Farm'} · ${fmtCurrency(currentCartProduct.price_per_unit)} / ${currentCartProduct.unit}`;
+    document.getElementById('modal-min-hint').textContent =
+      `Minimum order: ${minQty} ${unit}`;
+    document.getElementById('modal-qty').value = minQty;
+    document.getElementById('modal-qty').min = minQty;
+    document.getElementById('modal-qty').step = minQty;
+    document.getElementById('modal-error').style.display = 'none';
+    updateModalSubtotal();
+    document.getElementById('cart-modal').classList.add('open');
+    document.getElementById('modal-qty').focus();
+  }
+
+  function changeModalQty(delta) {
+    if (!currentCartProduct) return;
+    const input = document.getElementById('modal-qty');
+    const step = currentCartProduct.min_order_qty || 1;
+    const newVal = Math.max(step, parseFloat(input.value || step) + delta * step);
+    input.value = parseFloat(newVal.toFixed(2));
+    updateModalSubtotal();
+  }
+
+  function updateModalSubtotal() {
+    if (!currentCartProduct) return;
+    const qty = parseFloat(document.getElementById('modal-qty').value) || 0;
+    document.getElementById('modal-subtotal').textContent = fmtCurrency(qty * currentCartProduct.price_per_unit);
+  }
+
+  function closeCartModal() {
+    document.getElementById('cart-modal').classList.remove('open');
+    currentCartProduct = null;
+  }
+
+  async function confirmAddToCart() {
+    if (!currentCartProduct) return;
+    const qty = parseFloat(document.getElementById('modal-qty').value);
+    const minQty = currentCartProduct.min_order_qty;
+    const errEl = document.getElementById('modal-error');
+
+    if (!qty || qty < minQty) {
+      errEl.textContent = `Minimum order is ${minQty} ${currentCartProduct.unit}`;
+      errEl.style.display = 'block';
+      return;
+    }
+
+    const btn = document.getElementById('modal-add-btn');
+    btn.textContent = 'Adding...'; btn.disabled = true;
+    errEl.style.display = 'none';
+
+    try {
+      await apiFetch('/cart/', { method: 'POST', body: { product_id: currentCartProduct.id, quantity: qty } });
+      showToast(`${currentCartProduct.name} added to cart! 🛒`);
+      updateCartBadge();
+      closeCartModal();
+    } catch (err) {
+      errEl.textContent = err.message;
+      errEl.style.display = 'block';
+    }
+    btn.textContent = '🛒 Add to Cart'; btn.disabled = false;
+  }
+
+  // Close modal on overlay click
+  document.getElementById('cart-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeCartModal();
+  });
+
+  // Pre-select category from URL
+  const urlCat = new URLSearchParams(window.location.search).get('category');
+  if (urlCat) { document.getElementById('category').value = urlCat; }
+
+  loadProducts();
+</script>
+</body>
+</html>

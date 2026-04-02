@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Product Details — HarvestBridge</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+<nav class="navbar">
+  <a href="/" class="nav-logo"><span class="logo-icon">🌾</span>Harvest<span>Bridge</span></a>
+  <div class="nav-links">
+    <a href="/marketplace.html">← Back to Marketplace</a>
+    <a href="/cart.html">🛒 Cart <span id="cart-badge" style="background:var(--amber);color:var(--green-dark);padding:0.1rem 0.4rem;border-radius:100px;font-size:0.75rem;font-weight:700;"></span></a>
+  </div>
+  <div class="nav-auth" id="nav-auth"></div>
+</nav>
+
+<div style="padding-top:72px;min-height:100vh;background:var(--cream);">
+  <div class="section" style="padding-top:3rem;">
+    <div class="container" style="max-width:900px;">
+      <div id="product-content">
+        <div class="loading"><div class="spinner"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+  const productId = new URLSearchParams(window.location.search).get('id');
+
+  async function loadProduct() {
+    if (!productId) { window.location.href = '/marketplace.html'; return; }
+    try {
+      const p = await apiFetch(`/products/${productId}`);
+      renderProduct(p);
+      updateCartBadge();
+    } catch (err) {
+      document.getElementById('product-content').innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><h3>Product not found</h3></div>`;
+    }
+  }
+
+  function renderProduct(p) {
+    const emoji = categoryEmoji(p.category);
+    const imageHtml = p.image_path
+      ? `<img src="${p.image_path}" alt="${p.name}" style="width:100%;height:100%;object-fit:cover;">`
+      : `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:6rem;background:linear-gradient(135deg,#c8e6c9,#a5d6a7);">${emoji}</div>`;
+
+    document.getElementById('product-content').innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:2rem;align-items:start;">
+        <div>
+          <div style="height:380px;border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow-md);">
+            ${imageHtml}
+          </div>
+        </div>
+        <div>
+          <div style="display:flex;gap:0.5rem;margin-bottom:1rem;flex-wrap:wrap;">
+            <span class="badge badge-category">${p.category || 'Other'}</span>
+            ${p.is_organic ? '<span class="badge badge-organic">🌿 Organic</span>' : ''}
+          </div>
+          <h2 style="margin-bottom:0.5rem;">${p.name}</h2>
+          <div style="display:flex;align-items:center;gap:0.5rem;color:var(--text-light);margin-bottom:1.5rem;">
+            <span>🏡 ${p.farm_name || 'Farm'}</span> · <span>📍 ${p.farmer_location || 'India'}</span>
+          </div>
+          <div style="font-size:2.5rem;font-family:'Playfair Display',serif;font-weight:800;color:var(--green);margin-bottom:0.25rem;">
+            ${fmtCurrency(p.price_per_unit)}<span style="font-size:1.2rem;color:var(--text-light);font-family:'Inter',sans-serif;font-weight:400;">/${p.unit}</span>
+          </div>
+          <p style="font-size:0.9rem;color:var(--text-light);margin-bottom:1.5rem;">Minimum order: <strong>${p.min_order_qty} ${p.unit}</strong> · Available: <strong>${p.quantity_available} ${p.unit}</strong></p>
+          
+          ${p.description ? `<p style="color:var(--text-mid);margin-bottom:1.5rem;line-height:1.7;">${p.description}</p>` : ''}
+
+          <div style="background:var(--cream-dark);border-radius:var(--radius-md);padding:1.25rem;margin-bottom:1.5rem;">
+            <h4 style="margin-bottom:0.75rem;">👨‍🌾 Farmer Details</h4>
+            <p style="font-size:0.9rem;color:var(--text-mid);">
+              <strong>${p.farmer_name || 'Farmer'}</strong><br>
+              ${p.farmer_phone ? `📞 <a href="tel:${p.farmer_phone}" style="color:var(--green);font-weight:600;">${p.farmer_phone}</a>` : ''}
+            </p>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:0.75rem;" id="action-area">
+            <div style="display:flex;align-items:center;gap:1rem;">
+              <div class="form-group" style="flex:1;margin:0;">
+                <label style="font-size:0.85rem;">Quantity (${p.unit})</label>
+                <input type="number" id="qty-input" min="${p.min_order_qty}" step="${p.min_order_qty}" value="${p.min_order_qty}" style="padding:0.75rem 1rem;border:2px solid var(--border);border-radius:var(--radius-sm);width:100%;font-size:1rem;">
+              </div>
+              <div style="padding-top:1.5rem;">
+                <p style="font-size:0.85rem;color:var(--text-light);">Subtotal</p>
+                <p id="subtotal" style="font-family:'Playfair Display',serif;font-size:1.3rem;font-weight:700;color:var(--green);">${fmtCurrency(p.price_per_unit * p.min_order_qty)}</p>
+              </div>
+            </div>
+            <button class="btn btn-primary btn-full btn-lg" id="add-cart-btn" onclick="addToCart(${p.id})">🛒 Add to Cart</button>
+          </div>
+        </div>
+      </div>`;
+
+    // Update subtotal
+    const qtyInput = document.getElementById('qty-input');
+    qtyInput.addEventListener('input', () => {
+      const total = parseFloat(qtyInput.value || 0) * p.price_per_unit;
+      document.getElementById('subtotal').textContent = fmtCurrency(total);
+    });
+
+    // Show/hide cart button based on role
+    const role = getRole();
+    if (role === 'farmer') {
+      document.getElementById('action-area').innerHTML = `<p style="color:var(--text-light);text-align:center;">Log in as a business to place orders.</p>`;
+    } else if (!getUser()) {
+      document.getElementById('add-cart-btn').textContent = '🔐 Login to Order';
+      document.getElementById('add-cart-btn').onclick = () => window.location.href = '/login.html';
+    }
+  }
+
+  async function addToCart(productId) {
+    if (!getUser()) { window.location.href = '/login.html'; return; }
+    const qty = parseFloat(document.getElementById('qty-input').value);
+    try {
+      await apiFetch('/cart/', { method: 'POST', body: { product_id: productId, quantity: qty } });
+      showToast('Added to cart! 🛒');
+      updateCartBadge();
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  loadProduct();
+</script>
+</body>
+</html>

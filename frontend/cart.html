@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cart — HarvestBridge</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+<nav class="navbar">
+  <a href="/" class="nav-logo"><span class="logo-icon">🌾</span>Harvest<span>Bridge</span></a>
+  <div class="nav-links"><a href="/marketplace.html">← Continue Shopping</a></div>
+  <div class="nav-auth" id="nav-auth"></div>
+</nav>
+
+<div style="padding-top:72px;min-height:100vh;background:var(--cream);">
+  <div class="section" style="padding-top:3rem;">
+    <div class="container" style="max-width:900px;">
+      <h2 style="margin-bottom:2rem;">🛒 Your Cart</h2>
+      <div id="cart-content"><div class="loading"><div class="spinner"></div></div></div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+  if (!requireAuth('business')) {}
+
+  async function loadCart() {
+    try {
+      const cart = await apiFetch('/cart/');
+      renderCart(cart);
+    } catch (err) {
+      document.getElementById('cart-content').innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><h3>${err.message}</h3></div>`;
+    }
+  }
+
+  function renderCart(cart) {
+    const el = document.getElementById('cart-content');
+    if (!cart.items.length) {
+      el.innerHTML = `<div class="empty-state"><div class="empty-icon">🛒</div><h3>Your cart is empty</h3><p>Browse the marketplace to add products.</p><a href="/marketplace.html" class="btn btn-green">Go to Marketplace</a></div>`;
+      return;
+    }
+
+    const itemsHtml = cart.items.map(item => `
+      <div class="cart-item" id="cart-item-${item.id}">
+        <div class="item-image">
+          ${item.product.image_path ? `<img src="${item.product.image_path}" alt="${item.product.name}">` : categoryEmoji(item.product.category)}
+        </div>
+        <div class="item-details">
+          <div class="item-name">${item.product.name}</div>
+          <div class="item-farm">🏡 ${item.product.farm_name || 'Farm'} · ${fmtCurrency(item.product.price_per_unit)}/${item.product.unit}</div>
+          <div class="qty-controls" style="margin-top:0.5rem;">
+            <button class="qty-btn" onclick="updateQty(${item.id}, ${item.quantity - item.product.min_order_qty}, ${item.product.min_order_qty})">−</button>
+            <span style="min-width:60px;text-align:center;font-weight:600;">${item.quantity} ${item.product.unit}</span>
+            <button class="qty-btn" onclick="updateQty(${item.id}, ${item.quantity + item.product.min_order_qty}, ${item.product.min_order_qty})">+</button>
+          </div>
+        </div>
+        <div class="item-total">
+          <div>${fmtCurrency(item.subtotal)}</div>
+          <button class="btn btn-danger btn-sm" style="margin-top:0.5rem;" onclick="removeItem(${item.id})">🗑️ Remove</button>
+        </div>
+      </div>
+    `).join('');
+
+    el.innerHTML = `
+      <div>${itemsHtml}</div>
+      <div class="order-summary" style="margin-top:2rem;">
+        <div class="summary-item"><span>Items (${cart.item_count})</span><span>${fmtCurrency(cart.total)}</span></div>
+        <div class="summary-item"><span>Delivery</span><span style="color:var(--success);">To be discussed</span></div>
+        <div class="summary-item summary-total"><span>Total</span><span>${fmtCurrency(cart.total)}</span></div>
+        <a href="/checkout.html" class="btn btn-primary btn-full btn-lg" style="margin-top:1.5rem;">Proceed to Checkout →</a>
+      </div>`;
+  }
+
+  async function updateQty(itemId, newQty, minQty) {
+    if (newQty < minQty) { removeItem(itemId); return; }
+    try {
+      const cart = await apiFetch(`/cart/${itemId}`, { method: 'PUT', body: { quantity: newQty } });
+      renderCart(cart);
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  async function removeItem(itemId) {
+    try {
+      const cart = await apiFetch(`/cart/${itemId}`, { method: 'DELETE' });
+      showToast('Item removed');
+      renderCart(cart);
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  loadCart();
+</script>
+</body>
+</html>

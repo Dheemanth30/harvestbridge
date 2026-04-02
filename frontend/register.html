@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Register — HarvestBridge</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+<nav class="navbar"><a href="/" class="nav-logo"><span class="logo-icon">🌾</span>Harvest<span>Bridge</span></a><div class="nav-auth" id="nav-auth"></div></nav>
+
+<div class="auth-page" style="align-items:flex-start;padding-top:5rem;">
+  <div class="auth-card" style="max-width:560px;margin:0 auto;">
+    <div style="font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:800;color:var(--green);text-align:center;margin-bottom:0.5rem;">🌾 HarvestBridge</div>
+    <h2 style="text-align:center;">Create Account</h2>
+    <p style="text-align:center;color:var(--text-light);margin-bottom:1.5rem;">Join the farm-to-business network</p>
+
+    <div class="tabs">
+      <button class="tab-btn active" id="tab-farmer" onclick="switchTab('farmer')">🌾 I'm a Farmer</button>
+      <button class="tab-btn" id="tab-business" onclick="switchTab('business')">🏢 I'm a Business</button>
+    </div>
+
+    <form id="reg-form" style="display:flex;flex-direction:column;gap:1rem;">
+      <!-- Common Fields -->
+      <div class="form-row">
+        <div class="form-group"><label>Full Name *</label><input id="name" type="text" placeholder="Your full name" required></div>
+        <div class="form-group"><label>Phone Number</label><input id="phone" type="tel" placeholder="+91 98765 43210"></div>
+      </div>
+      <div class="form-group"><label>Email Address *</label><input id="email" type="email" placeholder="you@example.com" required></div>
+      <div class="form-row">
+        <div class="form-group"><label>Password *</label><input id="password" type="password" placeholder="Min 6 characters" required></div>
+        <div class="form-group"><label>Location *</label><input id="location" type="text" placeholder="City, State"></div>
+      </div>
+
+      <!-- Farmer Fields -->
+      <div id="farmer-fields">
+        <div style="border-top:1px solid var(--border);padding-top:1rem;margin-top:0.5rem;">
+          <p style="font-weight:600;color:var(--green);margin-bottom:1rem;">🌾 Farm Details</p>
+          <div style="display:flex;flex-direction:column;gap:1rem;">
+            <div class="form-group"><label>Farm Name *</label><input id="farm_name" type="text" placeholder="e.g., Green Valley Farm"></div>
+            <div class="form-row">
+              <div class="form-group"><label>Certifications</label><input id="certifications" type="text" placeholder="Organic, GAP, etc."></div>
+              <div class="form-group"><label>Produce Types</label><input id="produce_types" type="text" placeholder="Vegetables, Fruits..."></div>
+            </div>
+            <div class="form-group"><label>Farm Description</label><textarea id="description" placeholder="Tell businesses about your farm..."></textarea></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Business Fields -->
+      <div id="business-fields" style="display:none;">
+        <div style="border-top:1px solid var(--border);padding-top:1rem;margin-top:0.5rem;">
+          <p style="font-weight:600;color:var(--green);margin-bottom:1rem;">🏢 Business Details</p>
+          <div style="display:flex;flex-direction:column;gap:1rem;">
+            <div class="form-row">
+              <div class="form-group"><label>Business Name *</label><input id="business_name" type="text" placeholder="e.g., Fresh Bites Restaurant"></div>
+              <div class="form-group">
+                <label>Business Type</label>
+                <select id="business_type">
+                  <option value="">Select type</option>
+                  <option>Restaurant</option><option>Retailer</option><option>Hotel</option>
+                  <option>Distributor</option><option>Catering</option><option>Other</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-group"><label>GST Number (Optional)</label><input id="gst_number" type="text" placeholder="27AAPFU0939F1ZV"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="error-msg" class="form-error" style="display:none;"></div>
+      <button type="submit" class="btn btn-green btn-full btn-lg" id="reg-btn">Create Account</button>
+    </form>
+
+    <p style="text-align:center;margin-top:1.5rem;color:var(--text-light);">
+      Already have an account? <a href="/login.html" style="color:var(--green);font-weight:600;">Login here</a>
+    </p>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+  let currentRole = 'farmer';
+
+  // Pre-select role from URL param
+  const urlRole = new URLSearchParams(window.location.search).get('role');
+  if (urlRole === 'business') switchTab('business');
+
+  function switchTab(role) {
+    currentRole = role;
+    document.getElementById('tab-farmer').classList.toggle('active', role === 'farmer');
+    document.getElementById('tab-business').classList.toggle('active', role === 'business');
+    document.getElementById('farmer-fields').style.display = role === 'farmer' ? 'block' : 'none';
+    document.getElementById('business-fields').style.display = role === 'business' ? 'block' : 'none';
+  }
+
+  document.getElementById('reg-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('reg-btn');
+    const errEl = document.getElementById('error-msg');
+    btn.textContent = 'Creating account...'; btn.disabled = true;
+    errEl.style.display = 'none';
+
+    const body = {
+      name: document.getElementById('name').value,
+      email: document.getElementById('email').value,
+      phone: document.getElementById('phone').value,
+      password: document.getElementById('password').value,
+      location: document.getElementById('location').value,
+      role: currentRole,
+    };
+
+    if (currentRole === 'farmer') {
+      body.farm_name = document.getElementById('farm_name').value;
+      body.certifications = document.getElementById('certifications').value;
+      body.produce_types = document.getElementById('produce_types').value;
+      body.description = document.getElementById('description').value;
+    } else {
+      body.business_name = document.getElementById('business_name').value;
+      body.business_type = document.getElementById('business_type').value;
+      body.gst_number = document.getElementById('gst_number').value;
+    }
+
+    try {
+      const data = await apiFetch('/auth/register', { method: 'POST', body });
+      setAuth(data);
+      showToast(`Welcome to HarvestBridge, ${data.name}! 🎉`);
+      setTimeout(() => {
+        window.location.href = data.role === 'farmer' ? '/farmer-dashboard.html' : '/marketplace.html';
+      }, 1000);
+    } catch (err) {
+      errEl.textContent = err.message;
+      errEl.style.display = 'block';
+      btn.textContent = 'Create Account'; btn.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>
