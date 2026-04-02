@@ -1,5 +1,5 @@
 // ── API Base Helpers ──────────────────────────────────────────────────────
-const API = 'http://localhost:8000/api';
+const API = '/api';
 
 function getToken() { return localStorage.getItem('hb_token'); }
 function getUser() { return JSON.parse(localStorage.getItem('hb_user') || 'null'); }
